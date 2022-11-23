@@ -27,9 +27,7 @@ class Payload:
 
 def save_model(pl: AutoencoderPipeline, skeys: Sequence[str], dkeys: Sequence[str]) -> None:
     ml_registry = MLflowRegistrar(tracking_uri=TRACKING_URI, artifact_type="pytorch")
-    mlflow.start_run()
-    ml_registry.save(skeys=skeys, dkeys=dkeys, primary_artifact=pl.model, **pl.model_properties)
-    mlflow.end_run()
+    ml_registry.save(skeys=skeys, dkeys=dkeys, artifact=pl.model, **pl.model_properties)
 
 
 def load_model(skeys: Sequence[str], dkeys: Sequence[str]) -> ArtifactDict:
