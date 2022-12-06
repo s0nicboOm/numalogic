@@ -1,8 +1,13 @@
-from typing import Tuple, Sequence
+from typing import Tuple, Sequence, Any, Optional, Union
 
-from torch import nn, Tensor
+import torch
+from torch import nn, Tensor, optim
 
-from numalogic.models.autoencoder.base import TorchAE
+import pytorch_lightning as pl
+import torch.nn.functional as F
+from torch.utils.data import DataLoader
+from torchmetrics.functional import f1_score, precision, recall
+
 from numalogic.preprocess.datasets import SequenceDataset
 from numalogic.tools.exceptions import LayerSizeMismatchError
 
@@ -82,7 +87,6 @@ class _Decoder(nn.Module):
         self.seq_len = seq_len
         self.n_features = n_features
         self.dropout_p = dropout_p
-
         layers = self._construct_layers(layersizes)
         self.decoder = nn.Sequential(*layers)
 
@@ -115,7 +119,7 @@ class _Decoder(nn.Module):
         return layers
 
 
-class VanillaAE(TorchAE):
+class VanillaAE(pl.LightningModule):
     r"""
     Vanilla Autoencoder model comprising Fully connected layers only.
 
@@ -135,12 +139,16 @@ class VanillaAE(TorchAE):
         encoder_layersizes: Sequence[int] = (16, 8),
         decoder_layersizes: Sequence[int] = (8, 16),
         dropout_p: float = 0.25,
+        loss_fn=None,
     ):
 
-        super(VanillaAE, self).__init__()
+        super().__init__()
+        self.loss_fn = F.mse_loss
+        if loss_fn:
+            self.loss_fn = loss_fn
         self.seq_len = signal_len
         self.dropout_prob = dropout_p
-
+        self.save_hyperparameters()
         if encoder_layersizes[-1] != decoder_layersizes[0]:
             raise LayerSizeMismatchError(
                 f"Last layersize of encoder: {encoder_layersizes[-1]} "
@@ -174,9 +182,61 @@ class VanillaAE(TorchAE):
     def forward(self, x: Tensor) -> Tuple[Tensor, Tensor]:
         encoded = self.encoder(x)
         decoded = self.decoder(encoded)
-        return encoded, decoded
+        return decoded
 
-    def construct_dataset(self, x: Tensor, seq_len: int = None) -> SequenceDataset:
+    def configure_optimizers(self):
+        optimizer = optim.Adam(self.parameters(), lr=1e-3)
+        scheduler = optim.lr_scheduler.ReduceLROnPlateau(
+            optimizer, mode="min", factor=0.2, patience=10, min_lr=1e-5
+        )
+        return {"optimizer": optimizer, "lr_scheduler": scheduler, "monitor": "train_loss"}
+
+    def _get_reconstruction_loss(self, batch):
+        x = batch
+        x_hat = self.forward(x)
+        loss = self.loss_fn(x, x_hat)
+        loss = loss.mean()
+        return loss
+
+    def training_step(self, batch, batch_idx):
+        loss = self._get_reconstruction_loss(batch)
+        self.log("train_loss", loss)
+        return loss
+
+    def validation_step(self, batch, batch_idx):
+        loss, _precision, _recall, f1 = self._shared_eval_step(batch, batch_idx)
+        metrics = {
+            "val_loss": loss,
+            "val_precision": _precision,
+            "val_recall": _recall,
+            "test_f1_score": f1,
+        }
+        self.log_dict(metrics)
+        return metrics
+
+    def test_step(self, batch, batch_idx):
+        loss, _precision, _recall, f1 = self._shared_eval_step(batch, batch_idx)
+        metrics = {
+            "test_loss": loss,
+            "test_precision": _precision,
+            "test_recall": _recall,
+            "test_f1_score": f1,
+        }
+        self.log_dict(metrics)
+        return metrics
+
+    def _shared_eval_step(self, batch, batch_idx):
+        x, y = batch
+        y_hat = self.model(x)
+        _loss = F.cross_entropy(y_hat, y)
+        _precision = precision(y_hat, y, task="multiclass")
+        _recall = recall(y_hat, y, task="multiclass")
+        _f1 = f1_score(y_hat, y, task="multiclass")
+        return _loss, _precision, _recall, _f1
+
+    def construct_dataset(
+        self, x: Tensor, batch: int = None, seq_len: int = None, returnDataLoader=False
+    ) -> Union[SequenceDataset, DataLoader]:
         r"""
          Constructs dataset given tensor and seq_len
 
@@ -185,8 +245,11 @@ class VanillaAE(TorchAE):
             seq_len: sequence length / window length
 
         Returns:
-             SequenceDataset type
+            SequenceDataset type
         """
         __seq_len = seq_len or self.seq_len
         dataset = SequenceDataset(x, __seq_len, permute=True)
+        if returnDataLoader:
+            dataset_loader = DataLoader(dataset, batch_size=batch, shuffle=False)
+            return dataset_loader
         return dataset

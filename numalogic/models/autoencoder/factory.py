@@ -1,8 +1,8 @@
-from numalogic.models.autoencoder.pipeline import AutoencoderPipeline, SparseAEPipeline
+from numalogic.models.autoencoder.pipeline import AutoencoderPipeline
 
 
 class ModelPlFactory:
-    _pipelines = {"ae": AutoencoderPipeline, "ae_sparse": SparseAEPipeline}
+    _pipelines = {"ae": AutoencoderPipeline}
 
     @classmethod
     def get_pl_cls(cls, plname: str):
