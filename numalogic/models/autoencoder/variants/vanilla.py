@@ -130,6 +130,7 @@ class VanillaAE(pl.LightningModule):
         encoder_layersizes: encoder layer size (default = Sequence[int] = (16, 8))
         decoder_layersizes: decoder layer size (default = Sequence[int] = (8, 16))
         dropout_p: the dropout value (default=0.25)
+        loss_fn = loss function used for model training
     """
 
     def __init__(
@@ -243,6 +244,7 @@ class VanillaAE(pl.LightningModule):
          Args:
             x: Tensor type
             seq_len: sequence length / window length
+            batch: batch size
 
         Returns:
             SequenceDataset type

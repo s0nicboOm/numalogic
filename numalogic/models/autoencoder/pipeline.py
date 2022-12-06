@@ -30,18 +30,7 @@ class AutoencoderPipeline(Trainer):
     Args:
         model: model instance
         seq_len: sequence length
-        loss_fn: loss function used for training
-                        supported values include    {"huber", "l1", "mse"}
-        optimizer: optimizer to used for training.
-                           supported values include {"adam", "adagrad", "rmsprop"}
-        lr: learning rate
         batch_size: batch size for training
-        num_epochs: number of epochs for training
-                              can be used when the threshold calculated is too low
-        resume_train: parameter to decide if resume training is needed. Also,
-                              based on this parameter the optimizer state dict
-                              is stored in registry.
-
     >>> # Example usage
     >>> from numalogic.models.autoencoder.variants import VanillaAE
     >>> x = np.random.randn(100, 3)
