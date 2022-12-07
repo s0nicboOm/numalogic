@@ -1,6 +1,7 @@
 import logging
 
 import numpy as np
+import torch
 from numpy.typing import NDArray
 from pytorch_lightning import Trainer
 from pytorch_lightning.callbacks import TQDMProgressBar
@@ -41,10 +42,9 @@ class AutoencoderPipeline(Trainer):
     """
 
     def __init__(
-        self, model: AutoencoderModel = None, seq_len: int = None, batch_size=64, **kwargs
+            self, model: AutoencoderModel = None, seq_len: int = None, batch_size=64, **kwargs
     ):
         super().__init__(**kwargs)
-        self.callbacks = [DefaultCallback()]
         if not (model and seq_len):
             raise ValueError("No model and seq len provided!")
         self.batch_size = batch_size
@@ -64,5 +64,6 @@ class AutoencoderPipeline(Trainer):
     def score(self, score_func, input: NDArray[float]):
         input_dataloader = self.create_loader(input)
         output = self.predict(model=self._model, dataloaders=input_dataloader)
-        recon_err = score_func(input_dataloader.dataset.data.numpy(), output[0].numpy())
+        output = torch.cat(output, 0)
+        recon_err = score_func(input_dataloader.dataset.data.numpy(), output.numpy())
         return recon_err

@@ -144,7 +144,7 @@ class VanillaAE(pl.LightningModule):
     ):
 
         super().__init__()
-        self.loss_fn = F.mse_loss
+        self.loss_fn = F.cosine_similarity
         if loss_fn:
             self.loss_fn = loss_fn
         self.seq_len = signal_len
